@@ -1,0 +1,8 @@
+fastapi==0.115.12
+uvicorn==0.34.3
+PyJWT==2.10.1
+pymysql==1.1.1
+sqlalchemy==2.0.41
+cryptography==44.0.3
+openai==1.86.0
+python-dotenv==1.1.0
