@@ -2,7 +2,7 @@
 
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Card, PRIORITY_COLORS, TYPE_LABELS, Priority } from "../types";
+import { Card, PRIORITY_COLORS, TYPE_LABELS, safePriority, safeCardType } from "../types";
 
 interface Props {
   card: Card;
@@ -22,7 +22,7 @@ export default function SortableCard({ card, onClick }: Props) {
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    borderLeftColor: PRIORITY_COLORS[(card.priority || "medium") as Priority],
+    borderLeftColor: PRIORITY_COLORS[safePriority(card.priority)],
     opacity: isDragging ? 0.4 : 1,
   };
 
@@ -32,12 +32,15 @@ export default function SortableCard({ card, onClick }: Props) {
       style={style}
       {...attributes}
       {...listeners}
+      role="button"
+      tabIndex={0}
       onClick={onClick}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } }}
       className="mb-2 cursor-pointer rounded bg-white p-3 shadow-sm border-l-[3px] border border-gray-100 hover:shadow-md transition-shadow"
     >
       <div className="flex items-center justify-between mb-1">
         <span className="text-[10px] font-medium uppercase tracking-wider px-1.5 py-0.5 rounded bg-gray-100 text-[var(--gray-text)]">
-          {TYPE_LABELS[(card.card_type as keyof typeof TYPE_LABELS)] || "Task"}
+          {TYPE_LABELS[safeCardType(card.card_type)] || "Task"}
         </span>
         {card.points > 0 && (
           <span className="text-[10px] font-bold rounded-full bg-[var(--blue-primary)] text-white w-5 h-5 flex items-center justify-center">

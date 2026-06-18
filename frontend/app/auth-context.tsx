@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
 import { api } from "./api";
 
 interface AuthState {
@@ -25,34 +25,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      setLoading(false);
-      return;
-    }
-    api
-      .me()
-      .then((user) => {
+    api.me()
+      .then((data) => {
         setAuthenticated(true);
-        setUsername(user.username);
+        setUsername(data.username);
       })
       .catch(() => {
-        localStorage.removeItem("token");
+        setAuthenticated(false);
+        setUsername(null);
       })
       .finally(() => setLoading(false));
   }, []);
 
-  const login = async (user: string, pass: string) => {
-    const { token } = await api.login(user, pass);
-    localStorage.setItem("token", token);
-    setAuthenticated(true);
-    setUsername(user);
-  };
+  const logout = useCallback(() => {
+    api.logout().catch(() => {}).finally(() => {
+      setAuthenticated(false);
+      setUsername(null);
+    });
+  }, []);
 
-  const logout = () => {
-    localStorage.removeItem("token");
-    setAuthenticated(false);
-    setUsername(null);
+  useEffect(() => {
+    const handler = () => logout();
+    window.addEventListener("auth:unauthorized", handler);
+    return () => window.removeEventListener("auth:unauthorized", handler);
+  }, [logout]);
+
+  const login = async (user: string, pass: string) => {
+    const data = await api.login(user, pass);
+    setAuthenticated(true);
+    setUsername(data.username);
   };
 
   return (

@@ -1,23 +1,31 @@
-import hashlib
 import os
-from datetime import datetime, timedelta, timezone
-
 import jwt
-from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from datetime import datetime, timedelta, timezone
+from fastapi import Depends, HTTPException, Request, status
+from passlib.context import CryptContext
 from sqlalchemy.orm import Session
-
 from database import User, get_db
 
-SECRET_KEY = os.getenv("JWT_SECRET", "pm-app-secret-key-change-in-prod")
-ALGORITHM = "HS256"
-TOKEN_EXPIRE_HOURS = 24
+SECRET_KEY = os.environ.get("JWT_SECRET")
+if not SECRET_KEY:
+    raise RuntimeError("JWT_SECRET environment variable must be set")
 
-security = HTTPBearer()
+ALGORITHM = "HS256"
+TOKEN_EXPIRE_HOURS = int(os.getenv("TOKEN_EXPIRE_HOURS", "24"))
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 def hash_password(password: str) -> str:
-    return hashlib.sha256(password.encode()).hexdigest()
+    return pwd_context.hash(password)
+
+
+def verify_password(plain: str, hashed: str) -> bool:
+    # Support legacy SHA-256 hashes from before bcrypt migration
+    if not (hashed.startswith("$2b$") or hashed.startswith("$2a$")):
+        import hashlib
+        return hashlib.sha256(plain.encode()).hexdigest() == hashed
+    return pwd_context.verify(plain, hashed)
 
 
 def create_token(user_id: int) -> str:
@@ -29,15 +37,22 @@ def create_token(user_id: int) -> str:
 
 
 def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+    request: Request,
     db: Session = Depends(get_db),
 ) -> User:
+    # Try cookie first, then Bearer header fallback
+    token = request.cookies.get("token")
+    if not token:
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:]
+    if not token:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
     try:
-        payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id = int(payload["sub"])
-    except (jwt.InvalidTokenError, KeyError):
+    except (jwt.InvalidTokenError, KeyError, ValueError):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
-
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")

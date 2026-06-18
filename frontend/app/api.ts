@@ -1,21 +1,15 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
-
-function getToken(): string | null {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem("token");
-}
-
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const token = getToken();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(options.headers as Record<string, string>),
   };
-  if (token) headers["Authorization"] = `Bearer ${token}`;
 
-  const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
+  const res = await fetch(path, { ...options, headers, credentials: "include" });
   if (res.status === 401) {
-    localStorage.removeItem("token");
+    // Don't dispatch for the session-check call itself (would trigger logout on every page load)
+    if (path !== "/api/auth/me") {
+      window.dispatchEvent(new Event("auth:unauthorized"));
+    }
     throw new Error("Unauthorized");
   }
   if (!res.ok) {
@@ -28,12 +22,15 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
 export const api = {
   login: (username: string, password: string) =>
-    request<{ token: string }>("/api/auth/login", {
+    request<{ username: string }>("/api/auth/login", {
       method: "POST",
       body: JSON.stringify({ username, password }),
     }),
 
-  me: () => request<{ id: number; username: string }>("/api/auth/me"),
+  me: () => request<{ username: string }>("/api/auth/me"),
+
+  logout: (): Promise<void> =>
+    request<void>("/api/auth/logout", { method: "POST" }),
 
   getBoard: () => request<import("./types").Board>("/api/board"),
 

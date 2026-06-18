@@ -4,16 +4,21 @@ import { useState, useRef, useEffect } from "react";
 import { api } from "../api";
 import { ChatMessage } from "../types";
 
+interface MessageWithId extends ChatMessage {
+  id: number;
+}
+
 interface Props {
   onBoardUpdated: () => void;
 }
 
 export default function ChatSidebar({ onBoardUpdated }: Props) {
   const [open, setOpen] = useState(false);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<MessageWithId[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const msgIdRef = useRef(0);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -23,17 +28,18 @@ export default function ChatSidebar({ onBoardUpdated }: Props) {
     const text = input.trim();
     if (!text || loading) return;
 
-    const userMsg: ChatMessage = { role: "user", content: text };
+    const userMsg: MessageWithId = { id: ++msgIdRef.current, role: "user", content: text };
     const updated = [...messages, userMsg];
     setMessages(updated);
     setInput("");
     setLoading(true);
 
     try {
-      const res = await api.chat(text, updated);
+      const history: ChatMessage[] = updated.map(({ role, content }) => ({ role, content }));
+      const res = await api.chat(text, history);
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: res.message },
+        { id: ++msgIdRef.current, role: "assistant", content: res.message },
       ]);
       if (res.actions && res.actions.length > 0) {
         onBoardUpdated();
@@ -41,7 +47,7 @@ export default function ChatSidebar({ onBoardUpdated }: Props) {
     } catch {
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: "Sorry, something went wrong." },
+        { id: ++msgIdRef.current, role: "assistant", content: "Sorry, something went wrong." },
       ]);
     } finally {
       setLoading(false);
@@ -68,6 +74,7 @@ export default function ChatSidebar({ onBoardUpdated }: Props) {
             <h2 className="text-sm font-semibold text-white">AI Assistant</h2>
             <button
               onClick={() => setOpen(false)}
+              aria-label="Close AI Assistant"
               className="text-white/70 hover:text-white text-lg"
             >
               x
@@ -80,9 +87,9 @@ export default function ChatSidebar({ onBoardUpdated }: Props) {
                 Ask the AI to create, move, or edit cards on your board.
               </p>
             )}
-            {messages.map((msg, i) => (
+            {messages.map((msg) => (
               <div
-                key={i}
+                key={msg.id}
                 className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${
                   msg.role === "user"
                     ? "ml-auto bg-[var(--blue-primary)] text-white"

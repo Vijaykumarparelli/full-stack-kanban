@@ -2,13 +2,14 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { api } from "../api";
-import { Card, Board, PRIORITIES, CARD_TYPES, PRIORITY_COLORS, TYPE_LABELS, Priority, CardType } from "../types";
+import { Card, Board, PRIORITIES, CARD_TYPES, PRIORITY_COLORS, TYPE_LABELS, CardType, safePriority } from "../types";
 import CardModal from "./card-modal";
 
 export default function Backlog() {
   const [cards, setCards] = useState<Card[]>([]);
   const [board, setBoard] = useState<Board | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [editingCard, setEditingCard] = useState<Card | null>(null);
   const [filterType, setFilterType] = useState<string>("all");
   const [filterPriority, setFilterPriority] = useState<string>("all");
@@ -22,8 +23,10 @@ export default function Backlog() {
       ]);
       setCards(cardsData);
       setBoard(boardData);
+      setError(null);
     } catch (err) {
       console.error("Failed to load backlog:", err);
+      setError("Failed to load cards. Please refresh.");
     } finally {
       setLoading(false);
     }
@@ -61,8 +64,7 @@ export default function Backlog() {
 
   const handleAddCard = async () => {
     if (!board || board.columns.length === 0) return;
-    // Add to first column (Backlog)
-    const firstCol = board.columns.sort((a, b) => a.position - b.position)[0];
+    const firstCol = [...board.columns].sort((a, b) => a.position - b.position)[0];
     try {
       await api.createCard(firstCol.id, "New Card");
       await fetchData();
@@ -71,10 +73,15 @@ export default function Backlog() {
     }
   };
 
+  const s = search.toLowerCase();
   const filtered = cards.filter((card) => {
     if (filterType !== "all" && card.card_type !== filterType) return false;
     if (filterPriority !== "all" && card.priority !== filterPriority) return false;
-    if (search && !card.title.toLowerCase().includes(search.toLowerCase())) return false;
+    if (search && !(
+      card.title.toLowerCase().includes(s) ||
+      (card.description || "").toLowerCase().includes(s) ||
+      (card.column_name || "").toLowerCase().includes(s)
+    )) return false;
     return true;
   });
 
@@ -90,6 +97,11 @@ export default function Backlog() {
 
   return (
     <div className="p-4 max-w-5xl mx-auto">
+      {error && (
+        <div className="mb-4 rounded bg-red-50 border border-red-200 px-4 py-2 text-sm text-red-700">
+          {error}
+        </div>
+      )}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
           <input
@@ -97,6 +109,7 @@ export default function Backlog() {
             placeholder="Search cards..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+            aria-label="Search cards"
             className="rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-[var(--blue-primary)] focus:outline-none w-56"
           />
           <select
@@ -154,7 +167,7 @@ export default function Backlog() {
               <td className="py-2.5 pr-3">
                 <div
                   className="w-2 h-2 rounded-full"
-                  style={{ backgroundColor: PRIORITY_COLORS[(card.priority || "medium") as Priority] }}
+                  style={{ backgroundColor: PRIORITY_COLORS[safePriority(card.priority)] }}
                 />
               </td>
               <td className="py-2.5 pr-3">
@@ -171,7 +184,7 @@ export default function Backlog() {
               <td className="py-2.5 pr-3">
                 <span
                   className="text-xs font-medium capitalize"
-                  style={{ color: PRIORITY_COLORS[(card.priority || "medium") as Priority] }}
+                  style={{ color: PRIORITY_COLORS[safePriority(card.priority)] }}
                 >
                   {card.priority || "medium"}
                 </span>

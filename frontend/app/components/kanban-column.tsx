@@ -37,12 +37,17 @@ export default function KanbanColumn({ column, onRename, onAddCard, children }: 
             onChange={(e) => setName(e.target.value)}
             onBlur={handleSubmit}
             onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+            aria-label="Column name"
             className="w-full rounded border px-2 py-1 text-sm font-semibold text-[var(--dark-navy)] focus:outline-none focus:border-[var(--blue-primary)]"
             autoFocus
           />
         ) : (
           <h3
             onClick={() => setEditing(true)}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setEditing(true); } }}
+            aria-label={`Rename column ${column.name}`}
             className="cursor-pointer text-sm font-semibold uppercase tracking-wide text-[var(--dark-navy)]"
           >
             {column.name}

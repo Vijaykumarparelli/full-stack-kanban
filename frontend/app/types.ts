@@ -61,3 +61,19 @@ export interface AIResponse {
   actions: AIAction[];
   board: Board;
 }
+
+export function isPriority(v: string): v is Priority {
+  return PRIORITIES.includes(v as Priority);
+}
+
+export function isCardType(v: string): v is CardType {
+  return CARD_TYPES.includes(v as CardType);
+}
+
+export function safePriority(v: string | undefined | null): Priority {
+  return v && isPriority(v) ? v : "medium";
+}
+
+export function safeCardType(v: string | undefined | null): CardType {
+  return v && isCardType(v) ? v : "task";
+}
